@@ -8,6 +8,8 @@ export const GameBoard: React.FC = () => {
   const [playSelect] = useSound('/sounds/select.mp3', { volume: 0.5 });
   const [playSuccess] = useSound('/sounds/success.mp3', { volume: 0.5 });
   const [playError] = useSound('/sounds/error.mp3', { volume: 0.3 });
+  const refreshThemeAndLetters = useGameStore((state) => state.refreshThemeAndLetters);
+  
 
   const handleLetterClick = (row: number, col: number) => {
     selectLetter(row, col);
@@ -126,6 +128,10 @@ export const GameBoard: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      <button onClick={() => refreshThemeAndLetters()}>
+        Refresh Theme and Letters
+      </button>
     </div>
+    
   );
 };

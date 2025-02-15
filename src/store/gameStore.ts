@@ -1,21 +1,79 @@
-import { create } from 'zustand';
-import { GameState, Letter, Theme } from '../types';
+import { create } from "zustand";
+import { GameState, Letter, Theme } from "../types";
 
-const sampleTheme: Theme = {
-  id: 'colors',
-  name: 'Colors',
-  words: ['RED', 'BLUE', 'GREEN', 'YELLOW'],
-  spangram: 'RAINBOW',
-  hint: 'Look for things that brighten our world',
+interface AIResponse {
+  theme: Theme;
+  grid: string[][];
+}
+
+const refreshThemeAndLetters = async (set: any) => {
+  try {
+    const { theme, grid } = await fetchThemeAndLetters();
+    const letterGrid = grid.map((row, rowIndex) =>
+      row.map((char, colIndex) => ({
+        id: `${rowIndex}-${colIndex}`,
+        char,
+        isSelected: false,
+        selectionOrder: null,
+        position: { row: rowIndex, col: colIndex },
+      }))
+    );
+    set({
+      theme,
+      letters: letterGrid,
+    });
+  } catch (error) {
+    console.error("Error refreshing theme and letters:", error);
+  }
 };
 
-// openai key: sk-proj-X00anFgosmRhhWP75khXT3BlbkFJlyo7xhWoWhz9Sdoap9Hv does this key work?
+const fetchThemeAndLetters = async (): Promise<AIResponse> => {
+  console.log("Fetching theme and letters from AI...");
+  console.log("OpenAI API key:", import.meta.env.VITE_OPENAI_API_KEY);
+  const prompt = `
+Generate a JSON object with two keys:
+1. "theme": an object with fields "id", "name", "words" (an array of at least 4 valid color/noun words in uppercase), "spangram", and "hint".
+2. "grid": a double array (2D array) of uppercase letters arranged as a grid, such that at least 10 valid English words can be formed.
+Return only valid JSON.
+  `;
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-3.5-turbo",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.7,
+      max_tokens: 200,
+    }),
+  });
+  const data = await response.json();
+  const jsonString = data.choices[0].message.content;
+  try {
+    const parsed: AIResponse = JSON.parse(jsonString);
+    console.log("Parsed JSON from AI response:", parsed);
+    return parsed;
+  } catch (e) {
+    console.error("Error parsing JSON from AI response:", e);
+    throw e;
+  }
+};
+const sampleTheme: Theme = {
+  id: "colors",
+  name: "Colors",
+  words: ["RED", "BLUE", "GREEN", "YELLOW"],
+  spangram: "RAINBOW",
+  hint: "Look for things that brighten our world",
+};
+
 const createInitialLetters = (): Letter[][] => {
   const grid = [
-    ['R', 'A', 'I', 'N'],
-    ['B', 'L', 'U', 'E'],
-    ['O', 'W', 'G', 'D'],
-    ['Y', 'E', 'R', 'N'],
+    ["R", "A", "I", "N"],
+    ["B", "L", "U", "E"],
+    ["O", "W", "G", "D"],
+    ["Y", "E", "R", "N"],
   ];
 
   return grid.map((row, rowIndex) =>
@@ -29,7 +87,10 @@ const createInitialLetters = (): Letter[][] => {
   );
 };
 
-const isAdjacent = (pos1: { row: number; col: number }, pos2: { row: number; col: number }): boolean => {
+const isAdjacent = (
+  pos1: { row: number; col: number },
+  pos2: { row: number; col: number }
+): boolean => {
   const rowDiff = Math.abs(pos1.row - pos2.row);
   const colDiff = Math.abs(pos1.col - pos2.col);
   return rowDiff <= 1 && colDiff <= 1 && !(rowDiff === 0 && colDiff === 0);
@@ -46,7 +107,10 @@ const areLettersConnected = (letters: Letter[]): boolean => {
 
     for (let i = 0; i < letters.length; i++) {
       const next = letters[i];
-      if (!visited.has(next.id) && isAdjacent(current.position, next.position)) {
+      if (
+        !visited.has(next.id) &&
+        isAdjacent(current.position, next.position)
+      ) {
         if (isConnected(i, visited)) return true;
       }
     }
@@ -64,6 +128,7 @@ interface GameStore extends GameState {
   useHint: () => void;
   resetGame: () => void;
   clearSelection: () => void;
+  refreshThemeAndLetters: () => Promise<void>;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -76,15 +141,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   selectLetter: (row: number, col: number) =>
     set((state) => {
-      const newLetters = [...state.letters.map(row => [...row])];
+      const newLetters = [...state.letters.map((row) => [...row])];
       const letter = newLetters[row][col];
-      
+
       // If letter is already selected, remove it and all subsequent selections
       if (letter.isSelected) {
         const currentOrder = letter.selectionOrder;
-        newLetters.forEach(row => 
-          row.forEach(l => {
-            if (l.selectionOrder !== null && l.selectionOrder >= currentOrder!) {
+        newLetters.forEach((row) =>
+          row.forEach((l) => {
+            if (
+              l.selectionOrder !== null &&
+              l.selectionOrder >= currentOrder!
+            ) {
               l.isSelected = false;
               l.selectionOrder = null;
             }
@@ -102,7 +170,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       // If no letters are selected or the new letter is adjacent to the last selected letter
       if (
         selectedLetters.length === 0 ||
-        (selectedLetters.length > 0 && isAdjacent(selectedLetters[selectedLetters.length - 1].position, { row, col }))
+        (selectedLetters.length > 0 &&
+          isAdjacent(selectedLetters[selectedLetters.length - 1].position, {
+            row,
+            col,
+          }))
       ) {
         letter.isSelected = true;
         letter.selectionOrder = selectedLetters.length;
@@ -111,6 +183,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       return state;
     }),
+
+  refreshThemeAndLetters: async () => {
+    await refreshThemeAndLetters(set);
+  },
 
   submitWord: () =>
     set((state) => {
@@ -123,8 +199,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         return state;
       }
 
-      const word = selectedLetters.map((l) => l.char).join('');
-      
+      const word = selectedLetters.map((l) => l.char).join("");
+
       // Clear selection regardless of validity
       const newLetters = state.letters.map((row) =>
         row.map((letter) => ({
@@ -139,7 +215,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         (state.theme.words.includes(word) || word === state.theme.spangram) &&
         !state.foundWords.includes(word)
       ) {
-        const scoreIncrease = word === state.theme.spangram ? 50 : word.length * 10;
+        const scoreIncrease =
+          word === state.theme.spangram ? 50 : word.length * 10;
 
         return {
           letters: newLetters,
