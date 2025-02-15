@@ -9,7 +9,7 @@ const sampleTheme: Theme = {
   hint: 'Look for things that brighten our world',
 };
 
-// openai key: sk-proj-X00anFgosmRhhWP75khXT3BlbkFJlyo7xhWoWhz9Sdoap9Hv
+// openai key: sk-proj-X00anFgosmRhhWP75khXT3BlbkFJlyo7xhWoWhz9Sdoap9Hv does this key work?
 const createInitialLetters = (): Letter[][] => {
   const grid = [
     ['R', 'A', 'I', 'N'],
